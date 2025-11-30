@@ -5,6 +5,7 @@ import Reader from './common/reader';
 import pdf from '../demo/pdf';
 import epub from '../demo/epub';
 import snapshot from '../demo/snapshot';
+import TagPopup from './library/tag-popup';
 
 window.dev = true;
 
@@ -32,6 +33,12 @@ async function createReader() {
 	let demo;
 	let initialData = {};
 	let initialAnnotations = [];
+
+	// Create a container for the tag popup
+	const popupContainer = document.createElement('div');
+	popupContainer.id = 'tag-popup-container';
+	document.body.appendChild(popupContainer);
+	const popupRoot = createRoot(popupContainer);
 
 	if (id && type === 'snapshot') {
 		// Load from local library
@@ -109,18 +116,48 @@ async function createReader() {
 				}
 			}
 		},
-		onDeleteAnnotations: function (ids) {
+		onDeleteAnnotations: async function (ids) {
 			console.log('Delete annotations', JSON.stringify(ids));
+			if (id) {
+				try {
+					await fetch(`/api/library/${id}/annotations`, {
+						method: 'DELETE',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(ids)
+					});
+					console.log('Annotations deleted from library');
+				} catch (err) {
+					console.error('Failed to delete annotations', err);
+				}
+			}
 		},
 		onChangeViewState: function (state, primary) {
 			console.log('Set state', state, primary);
 		},
 		onOpenTagsPopup(annotationID, left, top) {
-			alert(`Opening Zotero tagbox popup for id: ${annotationID}, left: ${left}, top: ${top}`);
+			const annotation = reader._annotationManager._getAnnotationByID(annotationID);
+			if (!annotation) return;
+
+			popupRoot.render(
+				<TagPopup
+					annotationID={annotationID}
+					tags={annotation.tags}
+					position={{ left, top }}
+					onSave={(newTags) => {
+						annotation.tags = newTags;
+						reader._annotationManager.updateAnnotations([annotation]);
+					}}
+					onClose={() => {
+						popupRoot.render(null);
+						reader.focus();
+					}}
+				/>
+			);
 		},
-		onClosePopup(data) {
-			console.log('onClosePopup', data);
+		onClosePopup() {
+			popupRoot.render(null);
 		},
+		// ... (existing options)
 		onOpenLink(url) {
 			alert('Navigating to an external link: ' + url);
 		},
@@ -158,6 +195,29 @@ async function createReader() {
 	reader.enableAddToNote(true);
 	window._reader = reader;
 	await reader.initializedPromise;
+
+	// Add Back to Library button
+	if (id) {
+		const backBtn = document.createElement('button');
+		backBtn.textContent = '← Library';
+		backBtn.style.cssText = `
+			position: fixed;
+			top: 10px;
+			left: 80px; /* Right of the sidebar toggle if present, or just offset */
+			z-index: 10000;
+			padding: 6px 12px;
+			background: var(--color-background-primary, #fff);
+			border: 1px solid var(--color-border-primary, #ccc);
+			border-radius: 4px;
+			cursor: pointer;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+		`;
+		backBtn.onclick = () => {
+			window.location.href = '/dev/reader.html?view=library';
+		};
+		document.body.appendChild(backBtn);
+	}
 }
 
 createReader();

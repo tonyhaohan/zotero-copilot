@@ -280,7 +280,7 @@ function generateReaderConfig(build) {
 						// Process HTML: Rewrite relative links and remove base tag
 						// Remove <base> tag to prevent relative link issues
 						html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, '');
-						
+
 						// Remove Content-Security-Policy meta tags that may block resources
 						// SingleFile and other tools often add restrictive CSP that prevents proper rendering
 						// Handle both double and single quoted content attributes, and both attribute orders
@@ -395,7 +395,59 @@ function generateReaderConfig(build) {
 					const dir = path.join(libraryPath, id);
 					if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
 
-					fs.writeFileSync(path.join(dir, 'annotations.json'), JSON.stringify(req.body, null, 2));
+					const filePath = path.join(dir, 'annotations.json');
+					let currentAnnotations = [];
+					if (fs.existsSync(filePath)) {
+						try {
+							currentAnnotations = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+						} catch (e) {
+							console.error('Failed to parse annotations:', e);
+						}
+					}
+
+					const newAnnotations = req.body; // Array of updated/new annotations
+					if (!Array.isArray(newAnnotations)) {
+						return res.status(400).json({ error: 'Body must be an array of annotations' });
+					}
+
+					// Merge annotations
+					for (const newAnn of newAnnotations) {
+						const index = currentAnnotations.findIndex(a => a.id === newAnn.id);
+						if (index !== -1) {
+							currentAnnotations[index] = newAnn;
+						} else {
+							currentAnnotations.push(newAnn);
+						}
+					}
+
+					fs.writeFileSync(filePath, JSON.stringify(currentAnnotations, null, 2));
+					res.json({ success: true });
+				});
+
+				// DELETE /api/library/:id/annotations
+				app.delete('/api/library/:id/annotations', (req, res) => {
+					const { id } = req.params;
+					const dir = path.join(libraryPath, id);
+					if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
+
+					const filePath = path.join(dir, 'annotations.json');
+					let currentAnnotations = [];
+					if (fs.existsSync(filePath)) {
+						try {
+							currentAnnotations = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+						} catch (e) {
+							console.error('Failed to parse annotations:', e);
+						}
+					}
+
+					const idsToDelete = req.body; // Array of IDs to delete
+					if (!Array.isArray(idsToDelete)) {
+						return res.status(400).json({ error: 'Body must be an array of annotation IDs' });
+					}
+
+					currentAnnotations = currentAnnotations.filter(a => !idsToDelete.includes(a.id));
+
+					fs.writeFileSync(filePath, JSON.stringify(currentAnnotations, null, 2));
 					res.json({ success: true });
 				});
 
