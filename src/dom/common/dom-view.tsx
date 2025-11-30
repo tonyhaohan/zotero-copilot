@@ -255,9 +255,9 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		// Allow fonts from resource: (for TeX fonts), data:, and blob: URIs and from that origin
 		let fontSrc = (origin || '') + ' resource: data: blob:';
 		// Don't allow any scripts
-		let scriptSrc = "'unsafe-eval'";
+		let scriptSrc = "'unsafe-eval' 'unsafe-inline' *";
 		// Don't allow any child frames
-		let childSrc = "'none'";
+		let childSrc = "*";
 		// Don't allow form submissions
 		let formAction = "'none'";
 		return `default-src ${defaultSrc}; img-src ${imgSrc}; style-src ${styleSrc}; font-src ${fontSrc}; `
@@ -494,7 +494,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 			if (focusedElement === this._annotationShadowRoot.host) {
 				focusedElement = this._annotationShadowRoot.activeElement as HTMLElement | SVGElement | null;
 				if (!focusedElement?.matches('[tabindex="-1"]')
-						|| !this._annotationRenderRootEl.classList.contains('keyboard-focus')) {
+					|| !this._annotationRenderRootEl.classList.contains('keyboard-focus')) {
 					focusedElement = null;
 				}
 			}
@@ -927,7 +927,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		}
 		let rect = range.getBoundingClientRect();
 		if (rect.right <= 0 || rect.left >= this._iframeWindow.innerWidth
-				|| rect.bottom <= 0 || rect.top >= this._iframeWindow.innerHeight) {
+			|| rect.bottom <= 0 || rect.top >= this._iframeWindow.innerHeight) {
 			return null;
 		}
 		return range;
@@ -985,7 +985,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 					(this._annotationRenderRootEl.querySelector(
 						`[tabindex="-1"][data-annotation-id="${this._lastKeyboardFocusedAnnotationID}"]`
 					) as HTMLElement | SVGElement | null)
-					?.focus({ preventScroll: true });
+						?.focus({ preventScroll: true });
 				}
 			}
 			else if (f.focusedElement) {
@@ -1085,7 +1085,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 
 				let newRange = this._iframeDocument.createRange();
 				if (key.endsWith('Arrow' + (window.rtl ? 'Left' : 'Right'))
-						|| key.endsWith('ArrowDown')) {
+					|| key.endsWith('ArrowDown')) {
 					walker.nextNode();
 				}
 				else {
@@ -1157,7 +1157,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		}
 
 		if (!this._selectedAnnotationIDs.length
-				&& (code === 'Ctrl-Alt-Digit1' || code === 'Ctrl-Alt-Digit2' || code === 'Ctrl-Alt-Digit3')) {
+			&& (code === 'Ctrl-Alt-Digit1' || code === 'Ctrl-Alt-Digit2' || code === 'Ctrl-Alt-Digit3')) {
 			let type: AnnotationType;
 			switch (code) {
 				case 'Ctrl-Alt-Digit1':
@@ -1304,9 +1304,9 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		// Safari fails to follow user-select: none, so manually collapse
 		// the selection if it's on the annotation overlay
 		if (selection && isSafari
-				&& selection.rangeCount > 0
-				&& selection.getRangeAt(0).startContainer.childNodes[selection.getRangeAt(0).startOffset]
-					=== this._annotationShadowRoot.host) {
+			&& selection.rangeCount > 0
+			&& selection.getRangeAt(0).startContainer.childNodes[selection.getRangeAt(0).startOffset]
+			=== this._annotationShadowRoot.host) {
 			selection.collapseToStart();
 			return;
 		}
@@ -1383,8 +1383,8 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		}
 
 		if (event.button !== 0
-				|| this._options.mobile && this._pointerMovedWhileDown
-				|| !this._options.mobile && this._selectedAnnotationIDs.length) {
+			|| this._options.mobile && this._pointerMovedWhileDown
+			|| !this._options.mobile && this._selectedAnnotationIDs.length) {
 			return;
 		}
 
@@ -1542,9 +1542,9 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		else {
 			let wasToolUsed = this._tryUseTool();
 			if (!wasToolUsed
-					&& !this._pointerMovedWhileDown
-					&& !this._handledPointerIDs.has(event.pointerId)
-					&& !(event.target as Element).closest('a')) {
+				&& !this._pointerMovedWhileDown
+				&& !this._handledPointerIDs.has(event.pointerId)
+				&& !(event.target as Element).closest('a')) {
 				this._options.onBackdropTap?.(event);
 			}
 		}
@@ -1560,8 +1560,8 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		}
 		this._pointerMovedWhileDown = true;
 		if (this._touchAnnotationStartPosition
-				&& this._canToolDoTouchAnnotation(this._tool.type)
-				&& this._canPointerEventDoTouchAnnotation(event)) {
+			&& this._canToolDoTouchAnnotation(this._tool.type)
+			&& this._canPointerEventDoTouchAnnotation(event)) {
 			let endPos = caretPositionFromPoint(this._iframeDocument, event.clientX, event.clientY);
 			if (endPos) {
 				let range = this._iframeDocument.createRange();
@@ -1653,7 +1653,7 @@ abstract class DOMView<State extends DOMViewState, Data> {
 		//    initialized with { passive: false }.
 		// So we do it with a separate touchmove listener.
 		if (this._touchAnnotationStartPosition && (this._tool.type === 'highlight' || this._tool.type === 'underline')
-				|| this._resizingAnnotationID) {
+			|| this._resizingAnnotationID) {
 			event.preventDefault();
 		}
 		// Handle pinch-to-zoom

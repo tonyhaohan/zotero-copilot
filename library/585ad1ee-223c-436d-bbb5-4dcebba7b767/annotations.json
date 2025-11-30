@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "type": "highlight",
+    "color": "#2ea8e5",
+    "sortIndex": "0003261",
+    "position": {
+      "type": "CssSelector",
+      "value": "#Sx1\\.p1 > p",
+      "refinedBy": {
+        "type": "TextPositionSelector",
+        "start": 1536,
+        "end": 1605
+      }
+    },
+    "text": "The code is available at https://github.com/Agent-on-the-Fly/Memento.",
+    "pageLabel": "",
+    "comment": "新笔记2",
+    "tags": [],
+    "id": "K9LDICUY",
+    "dateCreated": "2025-11-30T13:13:37.092Z",
+    "dateModified": "2025-11-30T13:14:27.184Z",
+    "authorName": "John",
+    "isAuthorNameAuthoritative": true,
+    "onlyTextOrComment": true
+  }
+]

@@ -282,8 +282,8 @@ function generateReaderConfig(build) {
 						html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, '');
 
 						// Remove all <script> tags to prevent execution errors and CSP issues
-						html = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
-						html = html.replace(/<script\b[^>]*\/>/gim, "");
+						// html = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+						// html = html.replace(/<script\b[^>]*\/>/gim, "");
 
 						// Rewrite relative links to absolute URLs (basic implementation)
 						// This is a simple regex-based replacement and might not cover all cases
