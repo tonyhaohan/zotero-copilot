@@ -12,6 +12,7 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 	const [provider, setProvider] = useState('chatgpt');
 	const [customUrl, setCustomUrl] = useState('');
 	const [inputText, setInputText] = useState('');
+	const [copyStatus, setCopyStatus] = useState(''); // 'success' | 'error' | ''
 	const iframeRef = useRef(null);
 	const resizerRef = useRef(null);
 	const isResizing = useRef(false);
@@ -22,6 +23,14 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 			setInputText(selectedText);
 		}
 	}, [selectedText]);
+
+	// Clear copy status after a delay
+	useEffect(() => {
+		if (copyStatus) {
+			const timer = setTimeout(() => setCopyStatus(''), 2000);
+			return () => clearTimeout(timer);
+		}
+	}, [copyStatus]);
 
 	const getCurrentUrl = () => {
 		const selectedProvider = AI_PROVIDERS.find(p => p.id === provider);
@@ -50,10 +59,16 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 	};
 
 	const handleCopyToClipboard = async () => {
+		if (!inputText.trim()) {
+			setCopyStatus('error');
+			return;
+		}
 		try {
 			await navigator.clipboard.writeText(inputText);
+			setCopyStatus('success');
 		} catch (err) {
 			console.error('Failed to copy text:', err);
+			setCopyStatus('error');
 		}
 	};
 
@@ -78,6 +93,12 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 		document.removeEventListener('mouseup', handleMouseUp);
 	};
 
+	const getCopyButtonText = () => {
+		if (copyStatus === 'success') return 'Copied!';
+		if (copyStatus === 'error') return 'Failed';
+		return 'Copy';
+	};
+
 	if (!isOpen) return null;
 
 	return (
@@ -86,18 +107,31 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 				className="ai-panel-resizer"
 				ref={resizerRef}
 				onMouseDown={handleMouseDown}
+				role="separator"
+				aria-orientation="vertical"
+				aria-label="Resize AI panel"
 			/>
 			<div className="ai-panel-header">
 				<div className="ai-panel-title">AI Assistant</div>
-				<button className="ai-panel-close" onClick={onClose} title="Close AI Panel">
+				<button 
+					className="ai-panel-close" 
+					onClick={onClose} 
+					title="Close AI Panel"
+					aria-label="Close AI Panel"
+				>
 					×
 				</button>
 			</div>
 			<div className="ai-panel-controls">
+				<label htmlFor="ai-provider-select" className="visually-hidden">
+					Select AI Provider
+				</label>
 				<select
+					id="ai-provider-select"
 					value={provider}
 					onChange={handleProviderChange}
 					className="ai-provider-select"
+					aria-label="Select AI provider"
 				>
 					{AI_PROVIDERS.map(p => (
 						<option key={p.id} value={p.id}>{p.name}</option>
@@ -110,23 +144,39 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 						onChange={handleCustomUrlChange}
 						placeholder="Enter custom AI URL..."
 						className="ai-custom-url-input"
+						aria-label="Custom AI URL"
 					/>
 				)}
 			</div>
 			<div className="ai-panel-input-area">
+				<label htmlFor="ai-input-textarea" className="visually-hidden">
+					Text to send to AI
+				</label>
 				<textarea
+					id="ai-input-textarea"
 					value={inputText}
 					onChange={handleInputChange}
 					placeholder="Selected text will appear here. You can edit and send to AI."
 					className="ai-input-textarea"
 					rows={4}
+					aria-label="Text to send to AI"
 				/>
 				<div className="ai-input-actions">
-					<button onClick={handleCopyToClipboard} className="ai-action-btn" title="Copy to clipboard">
-						📋 Copy
+					<button 
+						onClick={handleCopyToClipboard} 
+						className={`ai-action-btn ${copyStatus ? `ai-copy-${copyStatus}` : ''}`}
+						title="Copy to clipboard"
+						aria-label="Copy text to clipboard"
+					>
+						{getCopyButtonText()}
 					</button>
-					<button onClick={handleSendToAI} className="ai-action-btn ai-send-btn" title="Send to AI (paste in chat)">
-						📤 Ready to Paste
+					<button 
+						onClick={handleSendToAI} 
+						className="ai-action-btn ai-send-btn" 
+						title="Copy and paste into AI chat"
+						aria-label="Ready to paste into AI chat"
+					>
+						Ready to Paste
 					</button>
 				</div>
 			</div>
@@ -135,9 +185,9 @@ function AIPanel({ isOpen, width, selectedText, onClose, onResize, onSendToAI })
 					<iframe
 						ref={iframeRef}
 						src={getCurrentUrl()}
-						title="AI Assistant"
+						title="AI Assistant Chat Interface"
 						className="ai-iframe"
-						sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+						sandbox="allow-scripts allow-forms allow-popups"
 					/>
 				) : (
 					<div className="ai-panel-placeholder">
