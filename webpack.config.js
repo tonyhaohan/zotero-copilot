@@ -1,4 +1,7 @@
 const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const crypto = require('crypto');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
@@ -168,8 +171,212 @@ function generateReaderConfig(build) {
 			devMiddleware: {
 				writeToDisk: true,
 			},
-			open: '/dev/reader.html?type=pdf',
+			open: ['/dev/reader.html?view=library'],
 			port: 3000,
+			setupMiddlewares: (middlewares, devServer) => {
+				if (!devServer) {
+					throw new Error('webpack-dev-server is not defined');
+				}
+
+				const app = devServer.app;
+				const libraryPath = path.resolve(__dirname, 'library');
+
+				if (!fs.existsSync(libraryPath)) {
+					fs.mkdirSync(libraryPath);
+				}
+
+				app.use(require('express').json());
+
+				// Helper to save metadata
+				const saveMetadata = (id, metadata) => {
+					const dir = path.join(libraryPath, id);
+					if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+					fs.writeFileSync(path.join(dir, 'metadata.json'), JSON.stringify(metadata, null, 2));
+				};
+
+				// GET /api/library
+				app.get('/api/library', (req, res) => {
+					console.log('GET /api/library request received');
+					const items = [];
+					if (fs.existsSync(libraryPath)) {
+						const dirs = fs.readdirSync(libraryPath);
+						console.log(`Found ${dirs.length} directories in library`);
+						for (const dir of dirs) {
+							if (dir.startsWith('.')) continue; // Skip hidden files
+							const metaPath = path.join(libraryPath, dir, 'metadata.json');
+							if (fs.existsSync(metaPath)) {
+								try {
+									const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+									items.push({ id: dir, ...metadata });
+								} catch (e) {
+									console.error(`Failed to parse metadata for ${dir}:`, e);
+								}
+							} else {
+								console.warn(`No metadata found for ${dir}`);
+							}
+						}
+					} else {
+						console.warn('Library directory does not exist');
+					}
+					console.log(`Returning ${items.length} items`);
+					res.json(items);
+				});
+
+				// GET /api/library/:id/metadata
+				app.get('/api/library/:id/metadata', (req, res) => {
+					const { id } = req.params;
+					const metaPath = path.join(libraryPath, id, 'metadata.json');
+					if (fs.existsSync(metaPath)) {
+						try {
+							const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+							res.json(metadata);
+						} catch (e) {
+							res.status(500).json({ error: 'Failed to parse metadata' });
+						}
+					} else {
+						res.status(404).json({ error: 'Metadata not found' });
+					}
+				});
+
+				// POST /api/import
+				app.post('/api/import', require('express').json(), async (req, res) => {
+					const { url } = req.body;
+					if (!url) return res.status(400).json({ error: 'URL is required' });
+
+					console.log(`Importing URL: ${url}`);
+					const id = crypto.randomUUID();
+					const dir = path.join(libraryPath, id);
+					if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+					try {
+						// Use a simple fetch-like implementation with https
+						const fetchUrl = (inputUrl) => {
+							return new Promise((resolve, reject) => {
+								const req = https.get(inputUrl, {
+									headers: {
+										'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+									}
+								}, (res) => {
+									if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+										// Handle redirect
+										console.log(`Redirecting to ${res.headers.location}`);
+										resolve(fetchUrl(new URL(res.headers.location, inputUrl).toString()));
+										return;
+									}
+									if (res.statusCode !== 200) {
+										reject(new Error(`Failed to fetch: ${res.statusCode}`));
+										return;
+									}
+									let data = '';
+									res.on('data', chunk => data += chunk);
+									res.on('end', () => resolve(data));
+								});
+								req.on('error', reject);
+							});
+						};
+
+						let html = await fetchUrl(url);
+
+						// Process HTML: Rewrite relative links and remove base tag
+						// Remove <base> tag to prevent relative link issues
+						html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, '');
+
+						// Remove all <script> tags to prevent execution errors and CSP issues
+						html = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+						html = html.replace(/<script\b[^>]*\/>/gim, "");
+
+						// Rewrite relative links to absolute URLs (basic implementation)
+						// This is a simple regex-based replacement and might not cover all cases
+						// A proper HTML parser would be better for production
+						const baseUrlObj = new URL(url);
+						html = html.replace(/(href|src)=["']([^"']+)["']/g, (match, attr, path) => {
+							if (path.startsWith('http') || path.startsWith('//') || path.startsWith('data:')) {
+								return match;
+							}
+							try {
+								const absoluteUrl = new URL(path, baseUrlObj.href).href;
+								return `${attr}="${absoluteUrl}"`;
+							} catch (e) {
+								return match;
+							}
+						});
+
+						// Extract title
+						const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+						const title = titleMatch ? titleMatch[1] : url;
+
+						const metadata = {
+							id,
+							title,
+							url,
+							importedDate: new Date().toISOString(),
+							tags: []
+						};
+
+						fs.writeFileSync(path.join(dir, 'index.html'), html);
+						fs.writeFileSync(path.join(dir, 'metadata.json'), JSON.stringify(metadata, null, 2));
+						fs.writeFileSync(path.join(dir, 'annotations.json'), '[]');
+
+						console.log(`Imported successfully: ${id}`);
+						res.json(metadata);
+					} catch (error) {
+						console.error('Import failed:', error);
+						// Cleanup
+						if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+						res.status(500).json({ error: 'Failed to fetch URL: ' + error.message });
+					}
+				});
+
+				// POST /api/library/:id/metadata
+				app.post('/api/library/:id/metadata', (req, res) => {
+					const { id } = req.params;
+					const dir = path.join(libraryPath, id);
+					if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
+
+					const metaPath = path.join(libraryPath, id, 'metadata.json');
+					const currentMeta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+					const newMeta = { ...currentMeta, ...req.body };
+
+					fs.writeFileSync(metaPath, JSON.stringify(newMeta, null, 2));
+					res.json(newMeta);
+				});
+
+				// DELETE /api/library/:id
+				app.delete('/api/library/:id', (req, res) => {
+					const { id } = req.params;
+					const dir = path.join(libraryPath, id);
+					if (fs.existsSync(dir)) {
+						fs.rmSync(dir, { recursive: true, force: true });
+					}
+					res.json({ success: true });
+				});
+
+				// GET /api/library/:id/annotations
+				app.get('/api/library/:id/annotations', (req, res) => {
+					const { id } = req.params;
+					const filePath = path.join(libraryPath, id, 'annotations.json');
+					if (fs.existsSync(filePath)) {
+						res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+					} else {
+						res.json([]);
+					}
+				});
+
+				// POST /api/library/:id/annotations
+				app.post('/api/library/:id/annotations', (req, res) => {
+					const { id } = req.params;
+					const dir = path.join(libraryPath, id);
+					if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
+
+					fs.writeFileSync(path.join(dir, 'annotations.json'), JSON.stringify(req.body, null, 2));
+					res.json({ success: true });
+				});
+
+				// Serve static files from library
+				app.use('/library', require('express').static(libraryPath));
+
+				return middlewares;
+			},
 		};
 	}
 

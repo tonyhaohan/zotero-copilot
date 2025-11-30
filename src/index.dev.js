@@ -1,3 +1,6 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import Library from './library/library';
 import Reader from './common/reader';
 import pdf from '../demo/pdf';
 import epub from '../demo/epub';
@@ -11,27 +14,71 @@ async function createReader() {
 	}
 	let queryString = window.location.search;
 	let urlParams = new URLSearchParams(queryString);
+	let view = urlParams.get('view');
+
+	if (view === 'library') {
+		// Clear existing content if any
+		document.body.innerHTML = '<div id="root"></div>';
+		const root = createRoot(document.getElementById('root'));
+		root.render(<Library onOpenDocument={(id) => {
+			window.location.href = `/dev/reader.html?type=snapshot&id=${id}`;
+		}} />);
+		return;
+	}
+
 	let type = urlParams.get('type') || 'pdf';
+	let id = urlParams.get('id');
+
 	let demo;
-	if (type === 'pdf') {
-		demo = pdf;
+	let initialData = {};
+	let initialAnnotations = [];
+
+	if (id && type === 'snapshot') {
+		// Load from local library
+		const htmlRes = await fetch(`/library/${id}/index.html`);
+		const htmlBuf = await htmlRes.arrayBuffer();
+
+		const metadataRes = await fetch(`/api/library/${id}/metadata`);
+		const metadata = await metadataRes.json();
+
+		const annotationsRes = await fetch(`/api/library/${id}/annotations`);
+		initialAnnotations = await annotationsRes.json();
+
+		initialData = {
+			buf: new Uint8Array(htmlBuf),
+			url: metadata.url,
+			importedFromURL: metadata.url
+		};
+		console.log('Loading snapshot with data:', {
+			bufSize: initialData.buf.byteLength,
+			url: initialData.url
+		});
+		demo = { state: {} }; // Default state
+	} else {
+		// Load demo
+		if (type === 'pdf') {
+			demo = pdf;
+		}
+		else if (type === 'epub') {
+			demo = epub;
+		}
+		else if (type === 'snapshot') {
+			demo = snapshot;
+		}
+		let res = await fetch(demo.fileName);
+		initialData = {
+			buf: new Uint8Array(await res.arrayBuffer()),
+			url: new URL('/', window.location).toString()
+		};
+		initialAnnotations = demo.annotations;
 	}
-	else if (type === 'epub') {
-		demo = epub;
-	}
-	else if (type === 'snapshot') {
-		demo = snapshot;
-	}
-	let res = await fetch(demo.fileName);
+
 	let reader = new Reader({
 		type,
 		readOnly: false,
-		data: {
-			buf: new Uint8Array(await res.arrayBuffer()),
-			url: new URL('/', window.location).toString()
-		},
+		data: initialData,
 		// rtl: true,
-		annotations: demo.annotations,
+		annotations: initialAnnotations,
 		primaryViewState: demo.state,
 		sidebarWidth: 240,
 		sidebarView: 'annotations', //thumbnails, outline
@@ -49,6 +96,18 @@ async function createReader() {
 		},
 		onSaveAnnotations: async function (annotations) {
 			console.log('Save annotations', annotations);
+			if (id) {
+				try {
+					await fetch(`/api/library/${id}/annotations`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(annotations)
+					});
+					console.log('Annotations saved to library');
+				} catch (err) {
+					console.error('Failed to save annotations', err);
+				}
+			}
 		},
 		onDeleteAnnotations: function (ids) {
 			console.log('Delete annotations', JSON.stringify(ids));
