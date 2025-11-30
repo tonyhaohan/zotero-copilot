@@ -280,6 +280,14 @@ function generateReaderConfig(build) {
 						// Process HTML: Rewrite relative links and remove base tag
 						// Remove <base> tag to prevent relative link issues
 						html = html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, '');
+						
+						// Remove Content-Security-Policy meta tags that may block resources
+						// SingleFile and other tools often add restrictive CSP that prevents proper rendering
+						// Handle both double and single quoted content attributes, and both attribute orders
+						html = html.replace(/<meta\s+http-equiv=["']?content-security-policy["']?\s+content="[^"]*"\s*\/?>/gi, '');
+						html = html.replace(/<meta\s+http-equiv=["']?content-security-policy["']?\s+content='[^']*'\s*\/?>/gi, '');
+						html = html.replace(/<meta\s+content="[^"]*"\s+http-equiv=["']?content-security-policy["']?\s*\/?>/gi, '');
+						html = html.replace(/<meta\s+content='[^']*'\s+http-equiv=["']?content-security-policy["']?\s*\/?>/gi, '');
 
 						// Remove all <script> tags to prevent execution errors and CSP issues
 						// (Script stripping disabled to allow rendering of complex HTML like arXiv papers)
@@ -300,9 +308,29 @@ function generateReaderConfig(build) {
 							}
 						});
 
-						// Extract title
-						const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-						const title = titleMatch ? titleMatch[1] : url;
+						// Extract title - try multiple sources for better compatibility
+						let title = url;
+						// Try <title> tag first (use [\s\S] to match across newlines)
+						const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+						if (titleMatch && titleMatch[1].trim()) {
+							title = titleMatch[1].trim().replace(/\s+/g, ' ');
+						}
+						// Fallback: try og:title meta tag
+						if (title === url) {
+							const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
+								|| html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+							if (ogTitleMatch && ogTitleMatch[1].trim()) {
+								title = ogTitleMatch[1].trim();
+							}
+						}
+						// Fallback: try first h1 tag
+						if (title === url) {
+							const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+							if (h1Match && h1Match[1].trim()) {
+								// Strip HTML tags from h1 content
+								title = h1Match[1].replace(/<[^>]+>/g, '').trim().replace(/\s+/g, ' ');
+							}
+						}
 
 						const metadata = {
 							id,
