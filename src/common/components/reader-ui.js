@@ -1,4 +1,4 @@
-import React, { Fragment, useState, useRef, useImperativeHandle } from 'react';
+import React, { Fragment, useState, useRef, useImperativeHandle, useEffect } from 'react';
 import { LocalizationProvider, ReactLocalization } from "@fluent/react";
 import Toolbar from './toolbar';
 import Sidebar from './sidebar/sidebar';
@@ -17,6 +17,7 @@ import PasswordPopup from './modal-popup/password-popup';
 import PrintPopup from './modal-popup/print-popup';
 import AppearancePopup from "./modal-popup/appearance-popup";
 import ThemePopup from './modal-popup/theme-popup';
+import AIPanel from './ai-panel/ai-panel';
 import { bundle } from '../../fluent';
 
 function View(props) {
@@ -101,12 +102,39 @@ const ReaderUI = React.forwardRef((props, ref) => {
 	let [state, setState] = useState(props.state);
 	let sidebarRef = useRef();
 	let annotationsViewRef = useRef();
+	
+	// AI Panel state
+	let [aiPanelOpen, setAIPanelOpen] = useState(false);
+	let [aiPanelWidth, setAIPanelWidth] = useState(400);
+	let [selectedTextForAI, setSelectedTextForAI] = useState('');
 
 	useImperativeHandle(ref, () => ({
 		setState,
 		sidebarScrollAnnotationIntoView: (id) => annotationsViewRef.current?.scrollAnnotationIntoView(id),
 		sidebarEditAnnotationText: (id) => annotationsViewRef.current?.editAnnotationText(id),
+		// AI Panel methods
+		toggleAIPanel: (open) => {
+			if (open === undefined) {
+				setAIPanelOpen(!aiPanelOpen);
+			} else {
+				setAIPanelOpen(open);
+			}
+		},
+		sendTextToAI: (text) => {
+			setSelectedTextForAI(text);
+			setAIPanelOpen(true);
+		}
 	}));
+	
+	// Update body class for AI panel
+	useEffect(() => {
+		if (aiPanelOpen) {
+			document.body.classList.add('ai-panel-open');
+			document.documentElement.style.setProperty('--ai-panel-width', `${aiPanelWidth}px`);
+		} else {
+			document.body.classList.remove('ai-panel-open');
+		}
+	}, [aiPanelOpen, aiPanelWidth]);
 
 	let findState = state.primary ? state.primaryViewFindState : state.secondaryViewFindState;
 	let viewStats = state.primary ? state.primaryViewStats : state.secondaryViewStats;
@@ -134,6 +162,7 @@ const ReaderUI = React.forwardRef((props, ref) => {
 						enableNavigateToNextPage={viewStats.canNavigateToNextPage}
 						appearancePopup={state.appearancePopup}
 						findPopupOpen={findState.popupOpen}
+						aiPanelOpen={aiPanelOpen}
 						themes={state.themes}
 						onChangeTheme={props.onChangeTheme}
 						tool={state.tool}
@@ -153,6 +182,7 @@ const ReaderUI = React.forwardRef((props, ref) => {
 						onOpenColorContextMenu={props.onOpenColorContextMenu}
 						onToggleAppearancePopup={props.onToggleAppearancePopup}
 						onToggleFind={props.onToggleFind}
+						onToggleAIPanel={() => setAIPanelOpen(!aiPanelOpen)}
 						onToggleContextPane={props.onToggleContextPane}
 					/>
 					<div>
@@ -253,6 +283,19 @@ const ReaderUI = React.forwardRef((props, ref) => {
 						onClose={props.onCloseThemePopup}
 					/>
 				)}
+				<AIPanel
+					isOpen={aiPanelOpen}
+					width={aiPanelWidth}
+					selectedText={selectedTextForAI}
+					onClose={() => setAIPanelOpen(false)}
+					onResize={(width) => setAIPanelWidth(width)}
+					onSendToAI={(text) => {
+						// Copy text to clipboard for pasting into AI chat
+						navigator.clipboard.writeText(text).catch(err => {
+							console.error('Failed to copy text:', err);
+						});
+					}}
+				/>
 				<div id="a11yAnnouncement" aria-live="polite"></div>
 			</Fragment>
 		</LocalizationProvider>

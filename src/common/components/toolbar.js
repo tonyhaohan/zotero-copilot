@@ -21,6 +21,7 @@ import IconImage from '../../../res/icons/20/annotate-area.svg';
 import IconInk from '../../../res/icons/20/annotate-ink.svg';
 import IconEraser from '../../../res/icons/20/annotate-eraser.svg';
 import IconFind from '../../../res/icons/20/magnifier.svg';
+import IconAI from '../../../res/icons/20/ai-assistant.svg';
 import IconChevronDown8 from '../../../res/icons/8/chevron-8.svg';
 import IconGoBack from '../../../res/icons/20/go-back.svg';
 
@@ -47,6 +48,10 @@ function Toolbar(props) {
 
 	function handleFindClick(event) {
 		props.onToggleFind();
+	}
+
+	function handleAIClick(event) {
+		props.onToggleAIPanel();
 	}
 
 	function handleToolClick(type) {
@@ -248,6 +253,12 @@ function Toolbar(props) {
 					tabIndex={-1}
 					onClick={handleFindClick}
 				><IconFind/></button>
+				<button
+					className={cx('toolbar-button ai-toggle', { active: props.aiPanelOpen })}
+					title="AI Assistant (Ctrl+Shift+L)"
+					tabIndex={-1}
+					onClick={handleAIClick}
+				><IconAI/></button>
 				{platform === 'zotero' && props.showContextPaneToggle && (
 					<Fragment>
 						<button

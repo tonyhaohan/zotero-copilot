@@ -200,6 +200,12 @@ export class KeyboardManager {
 			event.preventDefault();
 			this._reader.toggleFindPopup({ open: true });
 		}
+		else if (key === `${pm}-Shift-l`) {
+			// Send selected text to AI panel
+			event.preventDefault();
+			event.stopPropagation();
+			this._reader.sendTextToAI();
+		}
 		else if (key === `${pm}-Shift-g`) {
 			event.preventDefault();
 			event.stopPropagation();

@@ -1204,6 +1204,43 @@ class Reader {
 		}
 	}
 
+	/**
+	 * Get selected text from the document
+	 */
+	getSelectedText() {
+		let { activeElement } = document;
+		let selection = '';
+		if (activeElement.nodeName === 'IFRAME' && activeElement.contentWindow) {
+			selection = activeElement.contentWindow.getSelection().toString();
+		}
+		else {
+			selection = window.getSelection().toString();
+		}
+		return selection.trim();
+	}
+
+	/**
+	 * Send selected text to the AI panel
+	 */
+	sendTextToAI() {
+		const selectedText = this.getSelectedText();
+		if (selectedText && this._readerRef.current) {
+			this._readerRef.current.sendTextToAI(selectedText);
+		} else if (!selectedText) {
+			// Open AI panel even if no text is selected
+			this.toggleAIPanel(true);
+		}
+	}
+
+	/**
+	 * Toggle the AI panel
+	 */
+	toggleAIPanel(open) {
+		if (this._readerRef.current) {
+			this._readerRef.current.toggleAIPanel(open);
+		}
+	}
+
 	zoomIn() {
 		this._lastView.zoomIn();
 	}
